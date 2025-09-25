@@ -1,6 +1,7 @@
 module GAM
 
-using Distributions, GLM, Optim, BSplines, LinearAlgebra, DataFrames, Plots, Optim
+using Distributions, GLM, Optim, BSplines, LinearAlgebra, DataFrames, Optim
+using RecipesBase
 
 include("Links-Dists.jl")
 include("GAMData.jl")
@@ -23,8 +24,8 @@ export Dists
 export Dist_Map
 export Link_Map
 export GAMData
-export PartialDependencePlot
-export plotGAM
+export partialdependenceplot
+export plotgam
 export gam
 
 end
