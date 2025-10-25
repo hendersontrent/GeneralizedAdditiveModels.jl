@@ -20,7 +20,13 @@ function PIRLS(y, x, sp, Basis, Dist, Link; maxIter = 25, tol = 1e-6)
     
     # Initial Predictions
     n = length(y)
-    mu = y
+
+    if Dist[:Name] == "Bernoulli"
+        mu = clamp.(y, 1e-6, 1 - 1e-6)
+    else
+        mu = y
+    end
+
     eta = Link[:Function].(mu)
     
     # Deviance
@@ -36,6 +42,9 @@ function PIRLS(y, x, sp, Basis, Dist, Link; maxIter = 25, tol = 1e-6)
         global mod = FitWPS(z, x, sp, Basis, Dist, Link, w)
         eta = mod.Fitted
         mu = Link[:Inverse].(eta)
+        if Dist[:Name] == "Bernoulli"
+            mu = clamp.(mu, 1e-6, 1-1e-6)
+        end
         oldDev = dev
         dev = 2 * (logLik - sum(map((x,y) -> logpdf(Dist[:Distribution](x), y), mu, y)))
         if abs(dev - oldDev) < tol * dev
