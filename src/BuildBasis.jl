@@ -144,31 +144,54 @@ Arguments:
 - `Basis` : `AbstractArray` containing the basis matrix.
 """
 function BuildPenaltyMatrix(y, x, sp, Basis)
-
     n = length(y)
-    n_knots = map(x -> length(x.breakpoints), Basis)
-    X = map(BuildBasisMatrix, Basis, x)
-    D = map(BuildDifferenceMatrix, Basis)
-    # Drop one column from X and D for identifiability
-    X = map(DropCol, X, n_knots)
-    D = map(DropCol, D, n_knots)
 
-    # Center
-    ColMeans = map(BuildBasisMatrixColMeans, X)
-    X = map(CenterBasisMatrix, X, ColMeans)
+    # Prepare per-term blocks
+    Xblocks = Vector{AbstractMatrix}(undef, length(x))
+    Dblocks = Vector{AbstractMatrix}(undef, length(x))
+    ColMeans = Vector{AbstractArray}(undef, length(x))
 
-    # Store Coef index
-    CoefIndex = BuildCoefIndex(X)
+    for i in eachindex(x)
+        bi = Basis[i]
+        xi = x[i]
+        if bi === :linear
+            # centered 1-column linear block; no penalty
+            μ = mean(xi)
+            Xi = reshape(xi .- μ, :, 1)
+            Di = zeros(1, 1)
+            Xblocks[i] = Xi
+            Dblocks[i] = Di
+            ColMeans[i] = reshape([μ], 1, :)
+        else
+            # smooth block
+            nk  = length(bi.breakpoints)
+            Xi0 = BuildBasisMatrix(bi, xi)
+            Di0 = BuildDifferenceMatrix(bi)
+            Xi  = DropCol(Xi0, nk)
+            Di  = DropCol(Di0, nk)
+            # drop for identifiability
+            cm  = BuildBasisMatrixColMeans(Xi)
+            Xi  = CenterBasisMatrix(Xi, cm)
+            Xblocks[i] = Xi
+            Dblocks[i] = Di
+            ColMeans[i] = cm
+        end
+    end
 
-    # Build Design Matrix
-    X = hcat(repeat([1],n), hcat(X...)) # add intercept
+    # Coefficient index per-term by block width
+    CoefIndex = BuildCoefIndex(Xblocks)
 
-    # Build Penalty Matrix
-    D = dcat(map((p, d) -> (sqrt(p) * d), sp, D))
-    D = hcat(repeat([0], size(D,1)), D) # add 0 for intercept
+    # Assembled design with intercept
+    X = hcat(repeat([1], n), hcat(Xblocks...))
+
+    # Block-diagonal penalty (sqrt(sp) scaling on smooth blocks; linear blocks are zero already)
+    Dscaled = map((p, d) -> sqrt(p) .* d, sp, Dblocks)
+    D = dcat(Dscaled)
+    D = hcat(repeat([0], size(D, 1)), D) # intercept column
 
     return X, y, D, ColMeans, CoefIndex
 end
+
 
 """
     HatMatrix(X, D, W)

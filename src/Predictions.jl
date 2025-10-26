@@ -29,7 +29,15 @@ Arguments:
 - `ix` : `Int` denoting the variable to plot.
 """
 function PredictPartial(mod, ix)
-    predMatrix = BuildPredictionMatrix(mod.x[ix], mod.Basis[ix], mod.ColMeans[ix])
-    predBeta = mod.Coef[mod.CoefIndex[ix]]
-    return predMatrix * predBeta
+    bi = mod.Basis[ix]
+    if bi === :linear
+        μ  = mod.ColMeans[ix][1]         # stored as 1×1
+        Xi = reshape(mod.x[ix] .- μ, :, 1)
+        β  = mod.Coef[mod.CoefIndex[ix]] # scalar
+        return Xi * β
+    else
+        predMatrix = BuildPredictionMatrix(mod.x[ix], bi, mod.ColMeans[ix])
+        predBeta = mod.Coef[mod.CoefIndex[ix]]
+        return predMatrix * predBeta
+    end
 end
