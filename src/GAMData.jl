@@ -21,7 +21,7 @@ Arguments:
 mutable struct GAMData
     y::AbstractArray
     x::AbstractArray
-    Basis::AbstractArray{BSplineBasis}
+    Basis::AbstractArray
     Family::Dict
     Link::Dict
     Coef::AbstractArray

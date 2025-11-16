@@ -21,12 +21,30 @@ function PIRLS(y, x, sp, Basis, Dist, Link; maxIter = 25, tol = 1e-6)
     # Initial Predictions
     n = length(y)
 
+    # μ init. Should replace with multiple dispatch logic
+    μmin = 1e-8
+    μmax = 1e12  # generous upper bound to avoid overflow in weights
+
     if Dist[:Name] == "Bernoulli"
-        mu = clamp.(y, 1e-6, 1 - 1e-6)
+        p0 = clamp(mean(y), 1e-3, 1 - 1e-3)
+        mu = fill(p0, n)
+    elseif Dist[:Name] == "Poisson"
+        # Poisson needs strictly positive mu; start at max(y, small) or mean if all zeros
+        if all(==(0), y)
+            mu = fill(0.1, n)
+        else
+            mu = max.(Float64.(y), μmin)
+        end
+    elseif Dist[:Name] == "Gamma"
+        # Gamma also requires positive mu; start near the positive mean of y
+        ybar = max(mean(abs.(Float64.(y))), 1e-2)
+        mu = fill(ybar, n)
     else
-        mu = y
+        # Gaussian and others: start at y (okay to be any real)
+        mu = Float64.(y)
     end
 
+    mu = clamp.(mu, μmin, μmax)
     eta = Link[:Function].(mu)
     
     # Deviance

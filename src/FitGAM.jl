@@ -31,12 +31,22 @@ function gam(ModelFormula::String, Data::DataFrame; Family="Normal", Link="Ident
         @assert all(y .∈ Ref([0, 1])) "Response must be binary (0 or 1) for Bernoulli family"
     end
     
-    x = Data[!, GAMForm.covariates.variable]
-    BasisArgs = [(GAMForm.covariates.k[i], GAMForm.covariates.degree[i]) for i in 1:nrow(GAMForm.covariates)]
-    x = [x[!, col] for col in names(x)]
+    # Collect covariate columns and term meta
+    xdf = Data[!, GAMForm.covariates.variable]
+    x = [xdf[!, col] for col in names(xdf)]
+    BasisArgs  = [(GAMForm.covariates.k[i], GAMForm.covariates.degree[i]) for i in 1:nrow(GAMForm.covariates)]
+    smoothmask = collect(GAMForm.covariates.smooth)
 
-    # Build basis
-    Basis = map((xi, argi) -> BuildUniformBasis(xi, argi[1], argi[2]), x, BasisArgs)
+    # Per-term basis: smooth -> BSplineBasis, linear -> :linear
+    Basis = Vector{Any}(undef, length(x))
+    for i in eachindex(x)
+        if smoothmask[i]
+            k, degree = BasisArgs[i]
+            Basis[i] = BuildUniformBasis(x[i], k, degree)
+        else
+            Basis[i] = :linear
+        end
+    end
 
     # Fit PIRLS procedure
     gam = OptimPIRLS(y, x, Basis, family_name, link_name; Optimizer, maxIter, tol)
