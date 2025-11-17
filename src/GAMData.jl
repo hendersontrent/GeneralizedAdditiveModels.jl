@@ -29,7 +29,7 @@ mutable struct GAMData
     CoefIndex::AbstractArray
     Fitted::AbstractArray
     Diagnostics::Dict
-
+    #TODO Why is separate constructor needed? spk
     function GAMData(
         y::AbstractArray,
         x::AbstractArray,
@@ -44,4 +44,19 @@ mutable struct GAMData
     )
         new(y, x, Basis, Family, Link, Coef, ColMeans, CoefIndex, Fitted, Diagnostics)
     end
+end
+
+"Calculate residuals from fitted data"
+residuals(data)=abs.(data.y - data.Fitted)
+
+"Return fitted data to match R function"
+fitted(data)=data.Fitted
+
+"Print summary information of GAMData"
+function summary(data::GAMData, out::IO=stdout)
+    println("Summary:")
+    println("Coef $(data.Coef)")
+    println(out, "EDF: $(data.Diagnostics[:EDF])")
+    println(out, "GCV: $(data.Diagnostics[:GCV])")
+    println(out, "RSS: $(data.Diagnostics[:RSS])")
 end

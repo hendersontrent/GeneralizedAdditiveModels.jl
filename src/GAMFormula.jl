@@ -65,7 +65,8 @@ function ParseFormula(formula::String)
             smooth = true
         else  # no s() wrapping
             symbol_name = Symbol(component)
-            k = degree = 0  # Set default values when s() wrapping is absent
+            k = 10
+            degree = 10  # Set default values when s() wrapping is absent
             smooth = false
         end
         push!(df, (symbol_name, k, degree, smooth))
