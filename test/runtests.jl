@@ -406,4 +406,113 @@ using Distributions, Random, Statistics, LinearAlgebra
             @test length(mod.Basis) == p
         end
     end
+
+    # ===========================
+    # Formula Macro (@formula) Tests
+    # ===========================
+    @testset "Formula Macro Tests" begin
+        df = dataset("datasets", "trees")
+
+        @testset "SmoothTerm construction" begin
+            st1 = s(:x1, 10, 3)
+            @test st1 isa SmoothTerm
+            @test st1.term.sym == :x1
+            @test st1.k == 10
+            @test st1.degree == 3
+
+            st2 = s(:x2)
+            @test st2.k == 10
+            @test st2.degree == 3
+        end
+
+        @testset "Formula parsing from FormulaTerm" begin
+            f = @formula(Volume ~ s(Girth, 10, 3) + s(Height, 5, 2))
+
+            gam_formula = ParseFormula(f)
+            @test gam_formula.y == :Volume
+            @test nrow(gam_formula.covariates) == 2
+            @test gam_formula.covariates.variable[1] == :Girth
+            @test gam_formula.covariates.k[1] == 10
+            @test gam_formula.covariates.degree[1] == 3
+            @test gam_formula.covariates.smooth[1] == true
+
+            @test gam_formula.covariates.variable[2] == :Height
+            @test gam_formula.covariates.k[2] == 5
+            @test gam_formula.covariates.degree[2] == 2
+            @test gam_formula.covariates.smooth[2] == true
+        end
+
+        @testset "Formula with mixed smooth and linear terms" begin
+            f = @formula(Volume ~ s(Girth, 10, 3) + Height)
+
+            gam_formula = ParseFormula(f)
+            @test gam_formula.y == :Volume
+            @test nrow(gam_formula.covariates) == 2
+
+            @test gam_formula.covariates.variable[1] == :Girth
+            @test gam_formula.covariates.smooth[1] == true
+
+            @test gam_formula.covariates.variable[2] == :Height
+            @test gam_formula.covariates.smooth[2] == false
+            @test gam_formula.covariates.k[2] == 0
+            @test gam_formula.covariates.degree[2] == 0
+        end
+
+        @testset "GAM fitting with @formula macro" begin
+            f = @formula(Volume ~ s(Girth, 10, 3) + s(Height, 10, 3))
+
+            mod = gam(f, df)
+            @test mod isa GAMData
+            @test length(mod.Fitted) == nrow(df)
+
+            mod_string = gam("Volume ~ s(Girth, k=10, degree=3) + s(Height, k=10, degree=3)", df)
+            @test isapprox(mod.Fitted, mod_string.Fitted, rtol=1e-6)
+        end
+
+        @testset "GAM with @formula and different families" begin
+            f = @formula(Volume ~ s(Girth, 10, 3) + s(Height, 10, 3))
+
+            mod_gamma = gam(f, df; Family="Gamma", Link="Log")
+            @test mod_gamma isa GAMData
+            @test mod_gamma.Family[:Name] == "Gamma"
+            @test mod_gamma.Link[:Name] == "Log"
+
+            mod_gamma_string = gam("Volume ~ s(Girth, k=10, degree=3) + s(Height, k=10, degree=3)", df;
+                                   Family="Gamma", Link="Log")
+            @test isapprox(mod_gamma.Fitted, mod_gamma_string.Fitted, rtol=1e-6)
+        end
+
+        @testset "Bernoulli GAM with @formula" begin
+            n = 200
+            x1 = range(-2, 2, length=n)
+            x2 = randn(n)
+
+            f1 = sin.(x1 * π/2)
+            f2 = x2.^2 .- 1
+            eta = f1 + f2
+            p = 1 ./ (1 .+ exp.(-eta))
+            y = rand.(Bernoulli.(p))
+
+            df_bern = DataFrame(y=y, x1=x1, x2=x2)
+
+            f = @formula(y ~ s(x1, 8, 3) + s(x2, 8, 3))
+            mod = gam(f, df_bern; Family="Bernoulli", Link="Logit")
+
+            @test mod isa GAMData
+            @test mod.Family[:Name] == "Bernoulli"
+            @test all(0 .<= mod.Fitted .<= 1)
+
+            mod_string = gam("y ~ s(x1, k=8, degree=3) + s(x2, k=8, degree=3)", df_bern;
+                            Family="Bernoulli", Link="Logit")
+            @test isapprox(mod.Fitted, mod_string.Fitted, rtol=1e-6)
+        end
+
+        @testset "Plotting GAM fitted with @formula" begin
+            f = @formula(Volume ~ s(Girth, 10, 3) + s(Height, 10, 3))
+            mod = gam(f, df)
+
+            p = plotGAM(mod)
+            @test p isa Plots.Plot
+        end
+    end
 end
